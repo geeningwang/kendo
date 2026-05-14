@@ -1,10 +1,13 @@
-import Phaser from 'phaser';
 import { StageScene } from '../scenes/StageScene';
 import type { StageConfig, WaveConfig } from '../data/stages';
 import { BasicTrainee }     from '../entities/enemies/BasicTrainee';
 import { DefensiveTrainee } from '../entities/enemies/DefensiveTrainee';
 import { AgileTrainee }     from '../entities/enemies/AgileTrainee';
 import { Enemy } from '../entities/enemies/Enemy';
+import { DojoChampion }       from '../entities/bosses/DojoChampion';
+import { OpenChampion }       from '../entities/bosses/OpenChampion';
+import { SelectionChampion }  from '../entities/bosses/SelectionChampion';
+import { WorldChampion }      from '../entities/bosses/WorldChampion';
 import { CANVAS_H } from '../constants';
 
 /**
@@ -67,9 +70,20 @@ export class WaveManager {
     if (this.bossSpawned) return;
     this.bossSpawned = true;
 
-    // Boss spawning is handled per-stage in future iterations
-    // For now, trigger stage clear when all waves are done
-    this.scene.stageClear();
+    const x = this.scene.cameras.main.scrollX + 380;
+    const y = CANVAS_H - 60;
+
+    let boss;
+    switch (this.scene.stageIndex) {
+      case 0: boss = new DojoChampion(this.scene, x, y);      break;
+      case 1: boss = new OpenChampion(this.scene, x, y);      break;
+      case 2: boss = new SelectionChampion(this.scene, x, y); break;
+      case 3: boss = new WorldChampion(this.scene, x, y);     break;
+      default: this.scene.stageClear(); return;
+    }
+
+    this.scene.physics.add.collider(boss.sprite, this.groundGroup);
+    this.scene.enemies.push(boss);
   }
 
   private createEnemy(type: string, x: number, y: number): Enemy | null {

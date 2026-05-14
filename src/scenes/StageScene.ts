@@ -4,8 +4,11 @@ import { InputManager } from '../systems/InputManager';
 import { WaveManager }  from '../systems/WaveManager';
 import { HUD }          from '../systems/HUD';
 import { AudioManager } from '../systems/AudioManager';
-import { Chudan }       from '../entities/characters/Chudan';
 import { Character }    from '../entities/characters/Character';
+import { Chudan }       from '../entities/characters/Chudan';
+import { Jodan }        from '../entities/characters/Jodan';
+import { Nito }         from '../entities/characters/Nito';
+import { Koryu }        from '../entities/characters/Koryu';
 import { Enemy }        from '../entities/enemies/Enemy';
 import { stageConfigs } from '../data/stages';
 
@@ -21,8 +24,7 @@ export class StageScene extends Phaser.Scene {
   hud!: HUD;
   players: Character[] = [];
   enemies: Enemy[] = [];
-
-  private stageIndex = 0;
+  stageIndex = 0; // public — read by WaveManager for boss selection
   private waveManager!: WaveManager;
   private startTime = 0;
   private totalDamageTaken = 0;
@@ -67,12 +69,12 @@ export class StageScene extends Phaser.Scene {
     this.input_manager = new InputManager(this);
 
     // ── Players ───────────────────────────────────────────────────────────────
-    const p1 = new Chudan(this, 80, CANVAS_H - 60, 0);
+    const p1 = this.createCharacter(data?.p1Char ?? 'chudan', 80, CANVAS_H - 60, 0);
     this.physics.add.collider(p1.sprite, groundGroup);
     this.players.push(p1);
 
     if (data?.p2Char) {
-      const p2 = new Chudan(this, 140, CANVAS_H - 60, 1);
+      const p2 = this.createCharacter(data.p2Char, 140, CANVAS_H - 60, 1);
       this.physics.add.collider(p2.sprite, groundGroup);
       this.players.push(p2);
     }
@@ -184,5 +186,14 @@ export class StageScene extends Phaser.Scene {
       timeSec: elapsed,
       nextStageIndex: nextStage < STAGE_COUNT ? nextStage : null,
     });
+  }
+
+  private createCharacter(key: string, x: number, y: number, playerIndex: 0 | 1): Character {
+    switch (key) {
+      case 'jodan':  return new Jodan(this, x, y, playerIndex);
+      case 'nito':   return new Nito(this, x, y, playerIndex);
+      case 'koryu':  return new Koryu(this, x, y, playerIndex);
+      default:       return new Chudan(this, x, y, playerIndex);
+    }
   }
 }
