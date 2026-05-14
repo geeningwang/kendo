@@ -296,3 +296,254 @@ The following can be prepared as ready-to-use reference materials:
 - [ ] **Pixel art style guide** (color palettes and pixel scale for characters, bosses, and backgrounds)
 - [ ] **Project folder structure** (Phaser scene files, asset organization, input manager layout)
 - [ ] **Phaser 3 starter template** (bootstrap code with pixelArt config, canvas scaling, and dual input setup ready to go)
+
+---
+
+## VI. Technical Architecture
+
+### 1. Project Folder Structure
+
+```
+kendo-game/
+├── public/
+│   └── assets/
+│       ├── atlas/          # Texture atlases (.png + .json) — one per character/enemy set
+│       ├── audio/
+│       │   ├── bgm/        # BGM tracks (.ogg + .mp3 pairs)
+│       │   └── sfx/        # Sound effects (.ogg + .mp3 pairs)
+│       ├── tilemaps/       # Stage tilemaps (.json, exported from Tiled)
+│       └── ui/             # HUD icons, font sheets, screen overlays
+├── src/
+│   ├── main.ts             # Vite entry point — instantiates the Phaser game
+│   ├── config.ts           # Phaser game config (canvas size, physics, scene list, pixelArt flag)
+│   ├── constants.ts        # Shared constants (CANVAS_W, CANVAS_H, GRAVITY, ENERGY_MAX, etc.)
+│   ├── scenes/
+│   │   ├── BootScene.ts    # Loads minimal assets needed to show the preloader UI
+│   │   ├── PreloadScene.ts # Loads all game assets; shows progress bar
+│   │   ├── TitleScene.ts   # Title screen; first user gesture unlocks audio
+│   │   ├── SelectScene.ts  # Character select; reads localStorage for unlock flags
+│   │   ├── StageScene.ts   # Main gameplay scene (re-used across all 4 stages via stage config)
+│   │   └── ResultScene.ts  # Stage clear / game over; writes stage rating to localStorage
+│   ├── entities/
+│   │   ├── characters/
+│   │   │   ├── Character.ts    # Abstract base class — movement, jump, attack state machine, hitboxes
+│   │   │   ├── Chudan.ts
+│   │   │   ├── Jodan.ts
+│   │   │   ├── Nito.ts
+│   │   │   └── Koryu.ts
+│   │   ├── enemies/
+│   │   │   ├── Enemy.ts        # Abstract base class — chase AI, attack, stagger, death
+│   │   │   ├── BasicTrainee.ts
+│   │   │   ├── DefensiveTrainee.ts
+│   │   │   └── ...             # One file per enemy type
+│   │   └── bosses/
+│   │       ├── Boss.ts         # Abstract base class — phase management, HP thresholds, state machine
+│   │       ├── DojoChampion.ts
+│   │       ├── OpenChampion.ts
+│   │       ├── SelectionChampion.ts
+│   │       └── WorldChampion.ts
+│   ├── systems/
+│   │   ├── InputManager.ts     # Unifies keyboard + gamepad polling; exposes a per-player action map
+│   │   ├── HUD.ts              # Renders HP bars, energy gauge, score, lives — updated via events
+│   │   ├── WaveManager.ts      # Reads wave config for the current stage; spawns enemies on cue
+│   │   ├── SaveManager.ts      # localStorage read/write wrapper (unlocks, ratings, items)
+│   │   └── AudioManager.ts     # Wraps Phaser sound; enforces the user-gesture gate for BGM
+│   ├── data/
+│   │   ├── stages/
+│   │   │   ├── stage1.ts   # Wave definitions, enemy placements, hazard positions, boss key
+│   │   │   ├── stage2.ts
+│   │   │   ├── stage3.ts
+│   │   │   └── stage4.ts
+│   │   └── characters.ts   # Static move data (damage values, hitbox sizes, frame windows)
+│   └── utils/
+│       ├── StateMachine.ts # Generic finite state machine used by characters, enemies, and bosses
+│       └── math.ts         # Clamp, lerp, randomInt helpers
+├── index.html
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+---
+
+### 2. Scene Architecture
+
+| Scene | Responsibility | Transitions |
+|-------|---------------|-------------|
+| `BootScene` | Loads the progress bar sprite and font only | → `PreloadScene` immediately |
+| `PreloadScene` | Loads all atlases, tilemaps, audio; shows progress bar | → `TitleScene` on complete |
+| `TitleScene` | Displays title, handles the first user gesture to unlock audio, plays title BGM | → `SelectScene` on any key/button |
+| `SelectScene` | Renders character portraits, reads `localStorage` for hidden character flag, confirms selection | → `StageScene` with `{ stageIndex, p1Char, p2Char }` in scene data |
+| `StageScene` | All gameplay: spawns stage, enemies, boss; runs game loop; emits `stage-clear` or `game-over` | → `ResultScene` with rating data |
+| `ResultScene` | Calculates and displays D–S rating, writes to `localStorage`, shows unlocked items | → `SelectScene` (next stage) or `TitleScene` |
+
+**Key rule**: `StageScene` is the only scene that runs gameplay. It reads a stage config object (`stage1.ts` … `stage4.ts`) at `create()` time. Switching stages means restarting `StageScene` with different data — no duplicate scene classes.
+
+---
+
+### 3. Core Class Hierarchy
+
+#### Character (base)
+
+```
+Character extends Phaser.GameObjects.Container
+├── Properties: hp, maxHp, energy, maxEnergy, facing, state, onGround
+├── Physics body: the character's "body" hitbox (always active)
+├── Blade body: separate physics body, active only during attack frames
+├── Methods
+│   ├── update(input: ActionMap): drives the state machine each frame
+│   ├── playAnim(key): plays the named atlas animation, never interrupts a higher-priority state
+│   ├── takeDamage(amount, source): applies damage, triggers stagger state, emits 'hurt' event
+│   ├── useEnergy(bars): deducts from the energy gauge; returns false if insufficient
+│   └── Abstract: normalAttack(), heavyAttack(), jump(), grab(), super()
+└── Subclasses override the abstract methods and define their own hitbox sizes/frame windows
+```
+
+#### Enemy (base)
+
+```
+Enemy extends Phaser.GameObjects.Container
+├── State machine states: IDLE → CHASE → ATTACK → STAGGER → DEAD
+├── AI update(): chase player if beyond aggroRange; attack if within strikeRange
+├── takeDamage(): transitions to STAGGER; transitions to DEAD when hp ≤ 0
+└── Subclasses override aggroRange, strikeRange, attackPattern, and animation keys
+```
+
+#### Boss (base)
+
+```
+Boss extends Enemy
+├── phases: PhaseConfig[] — each phase has an HP threshold and its own state machine
+├── currentPhase: updated in takeDamage() when HP crosses a threshold
+├── Each phase state machine: IDLE → APPROACH → TELEGRAPH → ATTACK → RECOVER → repeat
+└── Subclasses define phases[], move sets per phase, and exclusive skill implementations
+```
+
+#### StateMachine (generic utility)
+
+```typescript
+class StateMachine {
+  addState(name: string, config: { onEnter?(); onUpdate?(); onExit?() }): this
+  transition(newState: string): void
+  update(): void   // calls currentState.onUpdate() each frame
+}
+```
+
+Used by `Character`, `Enemy`, and `Boss` — each instance owns its own `StateMachine`.
+
+---
+
+### 4. Input Manager Design
+
+`InputManager` abstracts away keyboard vs. gamepad so all character code calls a single `ActionMap`:
+
+```typescript
+interface ActionMap {
+  left: boolean; right: boolean; up: boolean; down: boolean;
+  attack: boolean; heavy: boolean; jump: boolean; grab: boolean;
+  super: boolean; guard: boolean;
+  // Edge-detection helpers (true only on the frame the key was pressed):
+  attackJustDown: boolean; heavyJustDown: boolean; jumpJustDown: boolean;
+  grabJustDown: boolean; superJustDown: boolean; guardJustDown: boolean;
+}
+```
+
+```
+InputManager
+├── update(): called once per frame before any entity update
+│   ├── Reads Phaser keyboard state for P1 (WASD + JKLIUH) and P2 (arrows + numpad)
+│   ├── Calls navigator.getGamepads(); maps index 0 → P1, index 1 → P2
+│   ├── Normalizes D-pad axes (value < -0.5 → left/up, value > 0.5 → right/down)
+│   └── Merges keyboard + gamepad into one ActionMap per player
+├── getP1(): ActionMap
+└── getP2(): ActionMap
+```
+
+Edge-detection (`justDown`) is computed by comparing the current frame's boolean against the previous frame's boolean — no Phaser `JustDown` helper needed.
+
+---
+
+### 5. Phaser Game Config
+
+```typescript
+// src/config.ts
+import Phaser from 'phaser';
+import { BootScene, PreloadScene, TitleScene, SelectScene, StageScene, ResultScene } from './scenes';
+
+export const gameConfig: Phaser.Types.Core.GameConfig = {
+  type: Phaser.AUTO,           // WebGL with Canvas fallback
+  width: 480,
+  height: 270,
+  pixelArt: true,              // disables texture smoothing + sets image-rendering: pixelated
+  backgroundColor: '#000000',
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { x: 0, y: 800 },
+      debug: import.meta.env.DEV,   // show hitboxes in dev builds only
+    },
+  },
+  scale: {
+    mode: Phaser.Scale.FIT,         // scales canvas to fill the window, maintaining aspect ratio
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  fps: {
+    target: 60,
+    min: 20,                   // clamps max delta to 50 ms — prevents the tab-focus-loss physics jump
+  },
+  scene: [BootScene, PreloadScene, TitleScene, SelectScene, StageScene, ResultScene],
+};
+```
+
+```typescript
+// src/main.ts
+import Phaser from 'phaser';
+import { gameConfig } from './config';
+
+new Phaser.Game(gameConfig);
+```
+
+---
+
+### 6. Hitbox System
+
+Each character and enemy uses **two separate Arcade Physics bodies**:
+
+| Body | Purpose | Active when |
+|------|---------|-------------|
+| **Body hitbox** | Receives damage from enemy blade bodies | Always |
+| **Blade hitbox** | Deals damage to enemy body hitboxes | Only during the attack's active frames |
+
+Implementation approach:
+- The blade hitbox is a second `Phaser.Physics.Arcade.Image` (invisible, zero-alpha) parented to the character container.
+- `setActive(false) / setActive(true)` toggles it at the start and end of active frames.
+- An `Arcade.overlap` check runs each frame between all blade hitboxes and all body hitboxes.
+- On overlap: call `target.takeDamage(attacker.currentMoveDamage, attacker)` and immediately disable the blade hitbox to prevent multi-hit on the same swing.
+
+---
+
+### 7. Build & Deploy
+
+**Vite config** (`vite.config.ts`):
+
+```typescript
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  base: '/kendo-game/',   // set to '/' for Netlify/itch.io; set to repo name for GitHub Pages
+  build: {
+    outDir: 'dist',
+    assetsInlineLimit: 0,  // never inline assets — keep all files as separate URLs for Phaser's loader
+  },
+});
+```
+
+**Build command**: `npm run build` → outputs static files to `dist/`.
+
+**Deploy targets**:
+
+| Target | Steps |
+|--------|-------|
+| **GitHub Pages** | Push `dist/` to the `gh-pages` branch (use `gh-pages` npm package: `npx gh-pages -d dist`). Set `base` in `vite.config.ts` to `'/<repo-name>/'`. |
+| **Netlify** | Drag-and-drop `dist/` in the Netlify dashboard, or connect the repo and set build command `npm run build`, publish dir `dist`. Set `base` to `'/'`. |
+| **itch.io** | Zip the contents of `dist/` (not the folder itself). Upload as HTML5 game. Set the root file to `index.html`. Set `base` to `'/'`. |
