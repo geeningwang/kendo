@@ -74,7 +74,19 @@ export abstract class Character {
     }
 
     this.sprite.setCollideWorldBounds(true);
-    (this.sprite.body as Phaser.Physics.Arcade.Body).setSize(24, 40);
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    if (atlasKey && scene.textures.exists(atlasKey)) {
+      // Phaser 3.90: body.y = sprite.y + scaleY*(offsetY - displayOriginY)
+      // All frames share sourceSize {w:471,h:454} → displayOriginY = 0.5*454 = 227
+      // Body 24×40 screen px → setSize(120, 200) where 120=24/0.2, 200=40/0.2
+      // setSize center=true auto-offsets x: (471-120)/2 = 175.5 (centers body on sprite)
+      // offset.y=253: body.y=sprite.y+0.2*(253-227)=sprite.y+5.2, body.bottom=sprite.y+45.2
+      // idle feet land at sprite.y+45.2 ✓; walk feet ≈ sprite.y+44.6 (≈1px float, OK)
+      body.setSize(120, 200);
+      body.setOffset(body.offset.x, 253);
+    } else {
+      body.setSize(24, 40); // centered on sprite, works for invisible placeholder
+    }
 
     // Blade hitbox (invisible, toggled during attack frames)
     this.bladeZone = scene.physics.add.image(x, y, '') as Phaser.Physics.Arcade.Image;
