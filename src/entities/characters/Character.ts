@@ -59,12 +59,19 @@ export abstract class Character {
     this.playerIndex = playerIndex;
     this.hp = MAX_HP;
 
-    // Main sprite (placeholder rectangle until atlas is ready)
-    this.sprite = scene.physics.add.sprite(x, y, '');
-    this.sprite.setVisible(false); // hidden until atlas available
-
-    // Colored placeholder rectangle drawn as a Graphics child
-    this.buildPlaceholderGraphics();
+    // Use atlas if subclass provides a key and the texture is already loaded
+    const atlasKey = this.getAtlasKey();
+    if (atlasKey && scene.textures.exists(atlasKey)) {
+      this.sprite = scene.physics.add.sprite(x, y, atlasKey, 'idle_0');
+      this.sprite.setScale(0.2);
+      this.sprite.setVisible(true);
+      this.createAnimations(atlasKey);
+    } else {
+      // Placeholder rectangle until atlas is ready
+      this.sprite = scene.physics.add.sprite(x, y, '');
+      this.sprite.setVisible(false);
+      this.buildPlaceholderGraphics();
+    }
 
     this.sprite.setCollideWorldBounds(true);
     (this.sprite.body as Phaser.Physics.Arcade.Body).setSize(24, 40);
@@ -198,6 +205,9 @@ export abstract class Character {
     this.bladeActive = true;
     this.attackTimer = this.ATTACK_DURATION;
 
+    const key = this.animKey('attack');
+    if (key) this.sprite.play(key, true);
+
     // Disable blade after active window
     this.scene.time.delayedCall(BLADE_ACTIVE_MS, () => {
       this.bladeActive = false;
@@ -257,10 +267,27 @@ export abstract class Character {
     return sm;
   }
 
+  // ── Atlas hooks (subclasses override to enable real sprites) ────────────────
+  /** Return the Phaser texture atlas key for this character, or null for placeholder. */
+  protected getAtlasKey(): string | null { return null; }
+  /** Called once to register Phaser.Anims for this atlas key. */
+  protected createAnimations(_key: string): void {}
+  /** Returns the full animation key for a given suffix, or '' if no atlas. */
+  protected animKey(suffix: string): string {
+    const k = this.getAtlasKey();
+    return k ? `${k}-${suffix}` : '';
+  }
+
   // ── State callbacks (subclasses can override) ─────────────────────────────────
 
-  protected onIdleEnter() {}
-  protected onWalkEnter() {}
+  protected onIdleEnter() {
+    const key = this.animKey('idle');
+    if (key) this.sprite.play(key, true);
+  }
+  protected onWalkEnter() {
+    const key = this.animKey('walk');
+    if (key) this.sprite.play(key, true);
+  }
   protected onJumpEnter() {}
   protected onJumpUpdate() {
     if (this.onGround) this.sm.transition('idle');

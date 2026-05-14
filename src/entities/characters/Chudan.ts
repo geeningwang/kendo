@@ -20,6 +20,34 @@ export class Chudan extends Character {
     super(scene, x, y, playerIndex);
   }
 
+  protected override getAtlasKey(): string | null {
+    return 'chudan';
+  }
+
+  protected override createAnimations(key: string): void {
+    const anims = this.scene.anims;
+    if (anims.exists(`${key}-idle`)) return; // already registered
+
+    anims.create({
+      key: `${key}-idle`,
+      frames: anims.generateFrameNames(key, { prefix: 'idle_', start: 0, end: 3 }),
+      frameRate: 8,
+      repeat: -1,
+    });
+    anims.create({
+      key: `${key}-walk`,
+      frames: anims.generateFrameNames(key, { prefix: 'walk_', start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1,
+    });
+    anims.create({
+      key: `${key}-attack`,
+      frames: anims.generateFrameNames(key, { prefix: 'attack_', start: 0, end: 4 }),
+      frameRate: 12,
+      repeat: 0,
+    });
+  }
+
   protected override onSuperEnter() {
     // Flash Strike: 3 rapid slashes
     const hits = [0, 120, 240];

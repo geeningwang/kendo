@@ -25,9 +25,8 @@ export class PreloadScene extends Phaser.Scene {
       this.bar.fillRect(CANVAS_W * 0.1, CANVAS_H / 2 - 8, (CANVAS_W * 0.8) * value, 16);
     });
 
-    // ── Placeholder assets (replaced with real atlas files when art is ready) ──
-    // Characters
-    // this.load.atlas('chudan', 'assets/atlas/chudan.png', 'assets/atlas/chudan.json');
+    // ── Characters ─────────────────────────────────────────────────────────────
+    this.load.atlas('chudan', 'assets/atlas/chudan.png', 'assets/atlas/chudan.json');
     // this.load.atlas('jodan',  'assets/atlas/jodan.png',  'assets/atlas/jodan.json');
     // this.load.atlas('nito',   'assets/atlas/nito.png',   'assets/atlas/nito.json');
     // this.load.atlas('koryu',  'assets/atlas/koryu.png',  'assets/atlas/koryu.json');
