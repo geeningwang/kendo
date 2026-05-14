@@ -178,7 +178,9 @@ Local co-op uses two separate key sets so both players can play on one keyboard,
 
 ### 1. Tech Stack
 
-**Recommended framework: [Phaser 3](https://phaser.io/phaser3)**
+**Recommended framework: [Phaser 3](https://phaser.io/phaser3) — pinned to v3.90 (latest stable)**
+
+> Phaser 4 is in early alpha with incomplete documentation and a changing API — not suitable for a production game project yet. Phaser 3.90 is the correct choice.
 
 Phaser 3 is the most widely used HTML5 2D game framework and is well-suited to beat 'em ups:
 - Built-in sprite animation system (frame-based, driven by JSON atlas data)
@@ -189,10 +191,10 @@ Phaser 3 is the most widely used HTML5 2D game framework and is well-suited to b
 - Web Audio API integration with volume control per channel (BGM / SFX)
 - WebGL renderer (falls back to Canvas 2D) — handles hundreds of sprites at 60 fps
 
-**Project setup**:
+**Project setup** (already bootstrapped in this repo):
 ```
-npm create vite@latest kendo-game -- --template vanilla-ts
-npm install phaser
+npm create vite@latest . -- --template vanilla-ts
+npm install phaser@3   # pins to 3.90 — do NOT use plain "phaser" (resolves to Phaser 4)
 ```
 TypeScript is recommended for larger projects; plain JavaScript works fine too.
 
@@ -247,7 +249,7 @@ These are real constraints specific to the browser environment that the design m
 
 Goal: get it **playable** first, then make it **fun**:
 
-1. **Bootstrap**: `npm create vite -- --template vanilla-ts`, install Phaser 3, configure `pixelArt: true`, set canvas to 480×270, add a full-page CSS scaling wrapper that maintains aspect ratio.
+1. **Bootstrap**: ~~`npm create vite -- --template vanilla-ts`~~ ✅ Done — Vite + TypeScript scaffolded, Phaser 3.90 installed (`npm install phaser@3`), `vite.config.ts` configured, canvas set to 480×270 with `pixelArt: true` and full-page CSS scaling.
 2. **Core Character**: Build Chūdan. Implement movement (WASD), normal attack, heavy attack, jump using Phaser Arcade Physics. Tune hitboxes and collision.
 3. **Stage 1 (Dojo Tournament)**: Build the level with a Phaser tilemap or manual platform groups. Add basic enemies with simple AI (chase + attack). Add camera horizontal follow with world bounds.
 4. **Boss Fight**: Implement the Dojo Champion with a state machine (idle → approach → attack → recover → repeat). Tune HP and attack windows.
@@ -295,7 +297,7 @@ The following can be prepared as ready-to-use reference materials:
 - [ ] **Wave spawn plans** for all stages (enemy types, positions, and counts per wave)
 - [ ] **Pixel art style guide** (color palettes and pixel scale for characters, bosses, and backgrounds)
 - [ ] **Project folder structure** (Phaser scene files, asset organization, input manager layout)
-- [ ] **Phaser 3 starter template** (bootstrap code with pixelArt config, canvas scaling, and dual input setup ready to go)
+- [x] **Phaser 3 starter template** (bootstrap code with pixelArt config, canvas scaling, and dual input setup ready to go) — implemented in `src/config.ts`, `src/main.ts`, `vite.config.ts`
 
 ---
 
